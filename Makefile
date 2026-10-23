@@ -1,29 +1,64 @@
-# Inspire du modele officiel numworks/epsilon-sample-app-c
 Q ?= @
 CC = arm-none-eabi-gcc
-NWLINK = npx --yes -- nwlink@latest
 BUILD_DIR = output
+NWLINK = npx --yes -- nwlink@0.0.16
+LINK_GC = 1
+LTO = 1
 
-src = $(addprefix src/,main.c)
+define object_for
+$(addprefix $(BUILD_DIR)/,$(addsuffix .o,$(basename $(1))))
+endef
 
-CFLAGS = -std=c99 -Os -Wall -ffunction-sections -fdata-sections
-CFLAGS += -fno-builtin -fno-tree-loop-distribute-patterns
+src = $(addprefix src/,\
+  main.c \
+)
+
+CFLAGS = -std=c99
 CFLAGS += $(shell $(NWLINK) eadk-cflags)
-LDFLAGS = -Wl,--relocatable -nostartfiles --specs=nosys.specs
-LDFLAGS += $(shell $(NWLINK) eadk-ldflags 2>/dev/null)
+CFLAGS += -Os -Wall
+CFLAGS += -ggdb
+LDFLAGS = -Wl,--relocatable
+LDFLAGS += -nostartfiles
+LDFLAGS += --specs=nano.specs
 
-.PHONY: build run clean
-build: $(BUILD_DIR)/jeux.nwa
+ifeq ($(LINK_GC),1)
+CFLAGS += -fdata-sections -ffunction-sections
+LDFLAGS += -Wl,-e,main -Wl,-u,eadk_app_name -Wl,-u,eadk_app_icon -Wl,-u,eadk_api_level
+LDFLAGS += -Wl,--gc-sections
+endif
 
-$(BUILD_DIR)/jeux.nwa: $(src) src/icon.png
-	@mkdir -p $(BUILD_DIR)
-	@echo "BUILD   $@"
-	$(Q) $(NWLINK) nwa-from-source $(CFLAGS) $(src) -o $@ --icon src/icon.png 2>/dev/null || \
-	  ( $(CC) $(CFLAGS) $(LDFLAGS) $(src) -o $(BUILD_DIR)/jeux.elf && \
-	    $(NWLINK) elf-to-nwa $(BUILD_DIR)/jeux.elf $@ --icon src/icon.png )
+ifeq ($(LTO),1)
+CFLAGS += -flto -fno-fat-lto-objects
+CFLAGS += -fwhole-program
+CFLAGS += -fvisibility=internal
+LDFLAGS += -flinker-output=nolto-rel
+endif
 
-run: build
-	$(NWLINK) install-nwa $(BUILD_DIR)/jeux.nwa
+.PHONY: build
+build: $(BUILD_DIR)/app.nwa
 
+.PHONY: run
+run: $(BUILD_DIR)/app.nwa
+	@echo "INSTALL $<"
+	$(Q) $(NWLINK) install-nwa $<
+
+$(BUILD_DIR)/app.nwa: $(call object_for,$(src)) $(BUILD_DIR)/icon.o
+	@echo "LD      $@"
+	$(Q) $(CC) $(CFLAGS) $(LDFLAGS) $^ -o $@
+
+$(addprefix $(BUILD_DIR)/,%.o): %.c | $(BUILD_DIR)
+	@echo "CC      $^"
+	$(Q) $(CC) $(CFLAGS) -c $^ -o $@
+
+$(BUILD_DIR)/icon.o: src/icon.png
+	@echo "ICON    $<"
+	$(Q) $(NWLINK) png-icon-o $< $@
+
+.PRECIOUS: $(BUILD_DIR)
+$(BUILD_DIR):
+	$(Q) mkdir -p $@/src
+
+.PHONY: clean
 clean:
-	rm -rf $(BUILD_DIR)
+	@echo "CLEAN"
+	$(Q) rm -rf $(BUILD_DIR)
