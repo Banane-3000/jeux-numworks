@@ -1,0 +1,14 @@
+JEUX NUMWORKS (Snake + Blocs) - quelques dizaines de Ko
+
+Commandes en jeu : fleches = deplacer, Back = retour menu.
+Blocs : Haut = tourner, Bas = descendre vite, OK = chute directe.
+
+COMPILER (PC) :
+1. Installer Node.js et arm-none-eabi-gcc (gcc-arm-none-eabi).
+2. Dans ce dossier : make build   -> output/jeux.nwa
+3. Installer : make run, ou envoyer le .nwa sur my.numworks.com/apps (Chrome/Edge).
+
+SI make echoue (ce code n'a pas pu etre compile avec le vrai SDK) :
+- Cloner https://github.com/numworks/epsilon-sample-app-c
+- Remplacer son src/main.c par celui-ci (et src/icon.png si tu veux), puis make build.
+Sous Upsilon : npx nwlink install-nwa output/jeux.nwa
